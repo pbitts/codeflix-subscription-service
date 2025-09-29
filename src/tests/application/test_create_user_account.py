@@ -22,7 +22,7 @@ account_input = CreateUserAccountInput(  # pytest.fixture
 )
 
 
-class TestCreatePlan:
+class TestCreateUserAccount:
     def test_when_email_is_registered_in_auth_service_then_raise_error(self):
         mock_auth_service = create_autospec(AuthService)
         mock_auth_service.find_by_email.return_value = "abcdef"
