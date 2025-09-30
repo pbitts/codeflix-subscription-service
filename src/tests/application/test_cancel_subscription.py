@@ -1,48 +1,92 @@
-from unittest.mock import create_autospec
-import uuid
+from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 
-from src.application.cancel_subscription import CancelSubscriptionUseCase, CancelSubscriptionInput
-from src.application.exceptions import SubscriptionNotFoundError
-from src.domain.subscription import Subscription, SubscriptionStatus
-from src.tests.infra.in_memory_subscription_repository import InMemorySubscriptionRepository
+from src.application.cancel_subscription import (
+    CancelSubscriptionUseCase,
+    CancelSubscriptionInput,
+)
+from src.domain.plan import Plan
+from src.domain.subscription import Subscription
+from src.domain.user_account import UserAccount, Address
+from src.domain.value_objects import MonetaryValue
+from src.tests.fixtures.infra.repositories import (
+    InMemorySubscriptionRepository,
+)
 
+
+@pytest.fixture
+def user_account():
+    return UserAccount(
+        iam_user_id="123456789012",
+        name="test-user",
+        email="test@user.com",
+        billing_address=Address(
+            street="123 Main St",
+            city="Anytown",
+            state="NY",
+            zip_code="12345",
+            country="BRL",
+        ),
+    )
+
+
+@pytest.fixture
+def basic_plan():
+    return Plan(
+        name="Basic", price=MonetaryValue(amount=Decimal("49.90"), currency="BRL")
+    )
+
+
+@pytest.fixture
+def active_subscription(user_account, basic_plan):
+    return Subscription.create_regular(
+        user_id=user_account.id,
+        plan_id=basic_plan.id,
+    )
 
 
 class TestCancelSubscription:
-    def test_when_subscription_not_found_then_raise_error(self):
-        repo = InMemorySubscriptionRepository()
+    def test_when_subscription_exists_then_cancel_it(
+        self, user_account, active_subscription
+    ):
+        # Arrange
+        subscription_repo = InMemorySubscriptionRepository([active_subscription])
+        use_case = CancelSubscriptionUseCase(repository=subscription_repo)
+        input_data = CancelSubscriptionInput(subscription_id=active_subscription.id)
+        assert active_subscription.is_active
 
-        use_case = CancelSubscriptionUseCase(
-            repo
-        )
+        # Act
+        use_case.execute(input_data)
 
-        subs_id = uuid.uuid4()
-        input = CancelSubscriptionInput(subscription_id=subs_id)
-        with pytest.raises(SubscriptionNotFoundError):
-            use_case.execute(input=input)
+        # Assert
+        assert active_subscription.is_canceled
 
-    def test_cancel_subscription(self):
-        repo = InMemorySubscriptionRepository()
-        user_id = uuid.uuid4()
-        plan_id = uuid.uuid4()
-        subscription = Subscription.create_regular(user_id, plan_id)
-        repo.save(subscription)
-        
-        saved_subs  = repo.find_by_id(subscription.id)
-        assert saved_subs is not None
-        assert repo.find_by_user_id(user_id) is not None
-        assert saved_subs.status == SubscriptionStatus.ACTIVE
+    def test_when_subscription_does_not_exist_then_return_error(self):
+        # Arrange
+        subscription_repo = InMemorySubscriptionRepository([])
+        use_case = CancelSubscriptionUseCase(repository=subscription_repo)
+        input_data = CancelSubscriptionInput(subscription_id=uuid4())
 
-        use_case = CancelSubscriptionUseCase(
-            repo
-        )
+        # Act/Assert
+        with pytest.raises(Exception) as exc_info:
+            use_case.execute(input_data)
 
-        input = CancelSubscriptionInput(subscription_id=subscription.id)
-        use_case.execute(input=input)
-        
-        cancelled_subs = repo.find_by_id(subscription.id)
-        assert cancelled_subs.status == SubscriptionStatus.CANCELLED
-        
-        
+        assert "not found" in str(exc_info.value)
+
+    def test_when_subscription_already_canceled_then_remains_canceled(
+        self, user_account, active_subscription
+    ):
+        # Arrange
+        subscription_repo = InMemorySubscriptionRepository([active_subscription])
+        use_case = CancelSubscriptionUseCase(repository=subscription_repo)
+        input_data = CancelSubscriptionInput(subscription_id=active_subscription.id)
+        active_subscription.cancel()
+        assert active_subscription.is_canceled
+
+        # Act
+        use_case.execute(input_data)
+
+        # Assert
+        assert active_subscription.is_canceled

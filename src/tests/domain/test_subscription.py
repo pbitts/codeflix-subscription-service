@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from dateutil.relativedelta import relativedelta
 
-from src.domain.subscription import Subscription, SubscriptionStatus
+from src.domain.subscription import Subscription
 
 
 class TestCreateRegularSubscription:
@@ -16,7 +16,7 @@ class TestCreateRegularSubscription:
         assert subscription.start_date is not None
         assert (subscription.end_date - subscription.start_date).days == 30
         assert subscription.is_trial is False
-        assert subscription.status == SubscriptionStatus.ACTIVE
+        assert subscription.is_active
 
 
 class TestCreateTrialSubscription:
@@ -29,7 +29,7 @@ class TestCreateTrialSubscription:
         assert subscription.start_date is not None
         assert (subscription.end_date - subscription.start_date).days == 7
         assert subscription.is_trial is True
-        assert subscription.status == SubscriptionStatus.ACTIVE
+        assert subscription.is_active
 
 
 class TestIsExpired:

@@ -1,40 +1,43 @@
 from decimal import Decimal
 from unittest.mock import create_autospec
-from uuid import uuid4
 
 import pytest
 
-from src.application.subscribe_to_plan import SubscribeToPlanUseCase, SubscribeToPlanInput
+from src.application.subscribe_to_plan import (
+    SubscribeToPlanUseCase,
+    SubscribeToPlanInput,
+)
 from src.domain.plan import Plan
 from src.domain.user_account import UserAccount, Address
 from src.domain.value_objects import MonetaryValue
-from src.infra.payment_gateway import PaymentGateway, Payment
-from src.tests.infra.in_memory_plan_repository import InMemoryPlanRepository
-from src.tests.infra.in_memory_user_account_repository import InMemoryUserAccountRepository
-from src.tests.infra.in_memory_subscription_repository import InMemorySubscriptionRepository
+from src.infra.payment.payment_gateway import PaymentGateway, Payment
+from src.tests.fixtures.infra.repositories import (
+    InMemoryPlanRepository,
+    InMemoryUserAccountRepository,
+    InMemorySubscriptionRepository,
+)
 
 
 @pytest.fixture
 def user_account():
     return UserAccount(
-        iam_user_id='123456789012',
-        name='test-user',
-        email='test@user.com',
+        iam_user_id="123456789012",
+        name="test-user",
+        email="test@user.com",
         billing_address=Address(
-            street='123 Main St',
-            city='Anytown',
-            state='NY',
-            zip_code='12345',
-            country='BRL'
-        )
+            street="123 Main St",
+            city="Anytown",
+            state="NY",
+            zip_code="12345",
+            country="BRL",
+        ),
     )
 
 
 @pytest.fixture
 def basic_plan():
     return Plan(
-        name="Basic",
-        price=MonetaryValue(amount=Decimal("49.90"), currency="BRL")
+        name="Basic", price=MonetaryValue(amount=Decimal("49.90"), currency="BRL")
     )
 
 
@@ -60,7 +63,7 @@ class TestSubscribeToPlanUseCase:
         input = SubscribeToPlanInput(
             user_id=user_account.id,
             plan_id=basic_plan.id,
-            payment_token="payment_token123"
+            payment_token="payment_token123",
         )
 
         output = use_case.execute(input)
@@ -83,5 +86,7 @@ class TestSubscribeToPlanUseCase:
     def test_when_plan_does_not_exist_then_raise_plan_not_found_error(self):
         pass
 
-    def test_when_user_already_has_active_subscription_then_raise_subscription_conflict_error(self):
+    def test_when_user_already_has_active_subscription_then_raise_subscription_conflict_error(
+        self,
+    ):
         pass

@@ -5,8 +5,8 @@ import pytest
 from src.application.create_user_account import CreateUserAccountUseCase, CreateUserAccountInput
 from src.application.exceptions import UserAlreadyExistsError
 from src.domain.user_account import Address
-from src.infra.auth_service import AuthService
-from src.tests.infra.in_memory_user_account_repository import InMemoryUserAccountRepository
+from src.infra.auth.auth_service import AuthService
+from src.tests.fixtures.infra.repositories import InMemoryUserAccountRepository
 
 account_input = CreateUserAccountInput(  # pytest.fixture
     name="John Doe",
@@ -22,7 +22,7 @@ account_input = CreateUserAccountInput(  # pytest.fixture
 )
 
 
-class TestCreateUserAccount:
+class TestCreatePlan:
     def test_when_email_is_registered_in_auth_service_then_raise_error(self):
         mock_auth_service = create_autospec(AuthService)
         mock_auth_service.find_by_email.return_value = "abcdef"
