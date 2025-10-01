@@ -4,7 +4,7 @@ from sqlalchemy import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from src.infra.api.dependencies import get_auth_service
-from src.infra.api.fastapi import app
+from src.infra.api.app import app
 from src.infra.auth.in_memory_auth_service import InMemoryAuthService
 from src.infra.db import get_session
 

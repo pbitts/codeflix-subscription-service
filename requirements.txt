@@ -1,10 +1,14 @@
 annotated-types==0.7.0
 anyio==4.11.0
+certifi==2025.8.3
 dateutils==0.6.12
 dnspython==2.8.0
 email-validator==2.3.0
 fastapi==0.118.0
 greenlet==3.2.4
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
 idna==3.10
 iniconfig==2.1.0
 packaging==25.0

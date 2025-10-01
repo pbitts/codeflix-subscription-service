@@ -1,9 +1,19 @@
+from uuid import UUID, uuid4
+
 import pytest
 from fastapi.testclient import TestClient
+from sqlmodel import Session
+
+from src.infra.api.dependencies import get_payment_gateway
+from src.infra.api.app import app
+from src.infra.db.repositories.sql_model_subscription_repository import (
+    SQLModelSubscriptionRepository,
+)
+from src.infra.payment.fake_payment_gateway import FakePaymentGateway
 
 
 @pytest.fixture
-def valid_payload() -> dict:
+def account_payload() -> dict:
     return {
         "name": "John Doe",
         "email": "john.doe@example.com",
@@ -18,52 +28,107 @@ def valid_payload() -> dict:
     }
 
 
-def test_create_user_account_success(client: TestClient, valid_payload: dict) -> None:
-    # Act
-    response = client.post("/accounts", json=valid_payload)
-
-    # Assert
-    assert response.status_code == 201
-    data = response.json()
-
-    assert data["user_id"]
-    assert data["iam_user_id"]
-
-
-def test_create_user_account_duplicate_email(
-    client: TestClient, valid_payload: dict
-) -> None:
-    # Create the first user
-    response = client.post("/accounts", json=valid_payload)
-    assert response.status_code == 201
-
-    # Act - Try to create another user with the same email
-    response = client.post("/accounts", json=valid_payload)
-
-    # Assert
-    assert response.status_code == 400
-    assert "User already registered in IAM" in response.json()["detail"]
-
-
-def test_create_user_account_invalid_data(client: TestClient) -> None:
-    # Arrange - Missing required fields
-    request_body = {
-        "name": "John Doe",
-        # Missing email
-        "billing_address": {
-            "street": "123 Main St",
-            # Missing city
-            "state": "CA",
-            "zip_code": "12345",
-            "country": "USA",
+@pytest.fixture
+def plan_payload() -> dict:
+    return {
+        "name": "Premium Plan",
+        "price": {
+            "amount": "19.99",
+            "currency": "BRL",
         },
     }
 
-    # Act
-    response = client.post("/accounts", json=request_body)
 
-    # Assert
-    assert response.status_code == 422
+@pytest.fixture
+def user_id(client: TestClient, account_payload: dict) -> str:
+    response = client.post("/accounts/", json=account_payload)
+    assert response.status_code == 201
+    return response.json()["user_id"]
+
+
+@pytest.fixture
+def plan_id(client: TestClient, plan_payload: dict) -> str:
+    response = client.post("/plans/", json=plan_payload)
+    assert response.status_code == 201
+    return response.json()["id"]
+
+
+@pytest.fixture
+def subscription_payload(user_id: str, plan_id: str) -> dict:
+    return {
+        "user_id": user_id,
+        "plan_id": plan_id,
+        "payment_token": "secure-token-123",
+    }
+
+
+def test_subscribe_to_plan_success(
+    client: TestClient,
+    user_id: str,
+    plan_id: str,
+    subscription_payload: dict,
+    session: Session,
+) -> None:
+    response = client.post("/subscriptions/", json=subscription_payload)
+
+    assert response.status_code == 201
     data = response.json()
-    assert data["detail"][0]["type"] == "missing"
-    assert data["detail"][0]["loc"] == ["body", "email"]
+    assert "subscription_id" in data
+    subscription = SQLModelSubscriptionRepository(session).find_by_id(
+        UUID(data["subscription_id"])
+    )
+    assert subscription is not None
+    assert not subscription.is_trial
+
+
+def test_when_payment_fails_then_create_trial_subscription(
+    user_id: str,
+    plan_id: str,
+    subscription_payload: dict,
+    client: TestClient,
+    session: Session,
+) -> None:
+    app.dependency_overrides[get_payment_gateway] = lambda: FakePaymentGateway(
+        success=False
+    )
+
+    response = client.post("/subscriptions/", json=subscription_payload)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert "subscription_id" in data
+    subscription = SQLModelSubscriptionRepository(session).find_by_id(
+        UUID(data["subscription_id"])
+    )
+    assert subscription is not None
+    assert subscription.is_trial
+
+
+def test_subscribe_to_plan_user_not_found(
+    client: TestClient,
+    plan_id: str,
+    subscription_payload: dict,
+) -> None:
+    # Modify the user_id to a non-existent one
+    subscription_payload["user_id"] = str(uuid4())
+
+    response = client.post("/subscriptions/", json=subscription_payload)
+
+    assert response.status_code == 404
+    assert subscription_payload["user_id"] in response.json()["detail"]
+
+
+def test_subscribe_to_plan_duplicate_subscription(
+    client: TestClient,
+    user_id: str,
+    plan_id: str,
+    subscription_payload: dict,
+) -> None:
+    # First subscription
+    response = client.post("/subscriptions/", json=subscription_payload)
+    assert response.status_code == 201
+
+    # Attempt to create a duplicate subscription
+    response = client.post("/subscriptions/", json=subscription_payload)
+    assert response.status_code == 409
+    assert "User already has active subscription" in response.json()["detail"]

@@ -68,6 +68,7 @@ def get_payment_gateway() -> PaymentGateway:
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
 NotificationServiceDep = Annotated[
     NotificationService, Depends(get_notification_service)
 ]
