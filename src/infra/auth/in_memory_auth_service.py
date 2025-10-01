@@ -1,4 +1,7 @@
-class InMemoryAuthService:
+from src.infra.auth import AuthService
+
+
+class InMemoryAuthService(AuthService):
     def __init__(self, users: list[str] | None = None):
         self.users = users or []
 
@@ -8,6 +11,6 @@ class InMemoryAuthService:
                 return user
         return None
 
-    def create_user(self, email: str, _: str) -> str:
+    def create_user(self, email: str, password: str) -> str:
         self.users.append(email)
         return "abcdef"
